@@ -1,0 +1,84 @@
+"""Higham near PD algorithm unit tests."""
+import os
+
+import numpy as np
+import pytest
+import rpy2.robjects as robjects
+import rpy2.robjects.numpy2ri as rpyn
+
+import cpd
+from util import DATA_DIR
+
+HIGHAM_DATA_DIR = os.path.join(DATA_DIR, "higham")
+
+
+class TestNearPdHigham:
+    @pytest.mark.parametrize("eig_tol", (1e-6, 1e-5, 1e-4))
+    def test_near_pd_is_spd(self, eig_tol):
+        for i in range(10):
+            for j in range(2, 50):
+                a = np.random.randn(j, j)
+                b = cpd.near_pd.higham(a, eig_tol=eig_tol)
+                assert cpd.linalg.is_spd(b, eig_tol=eig_tol)
+
+    def test_near_pd_reproduces_r_result(self):
+        """Baseline calculated with R's nearPD function from Katherine:
+        n.A <- nearPD(A, corr=FALSE, do2eigen=FALSE, eig.tol=1e-10, conv.tol=1e-11, maxit=5000)
+        """
+        a = np.loadtxt(os.path.join(HIGHAM_DATA_DIR, "a.txt"))
+        b_expected = np.loadtxt(os.path.join(HIGHAM_DATA_DIR, "a_near_pd.txt"))
+
+        b = cpd.near_pd.higham(a, eig_tol=1e-10)
+
+        assert np.linalg.norm(b - b_expected) < 1e-8 * np.linalg.norm(b)
+
+    def test_near_pd_reproduces_r_result_by_calling_r(self):
+        # The two implementations seem to agree only for eps_tol ~ 0. Otherwise they give 1e-3 error.
+        eig_tol = 1e-10
+        j = 10
+        a = np.random.randn(j, j)
+
+        b = cpd.near_pd.higham(a, eig_tol=eig_tol)
+
+        b_expected = near_pd_using_r(a, eig_tol=eig_tol)
+        assert np.linalg.norm(b - b_expected) < 2e-7 * np.linalg.norm(b)
+
+    def test_near_pd_reproduces_higham_paper_result(self):
+        a = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]])
+        b_expected = np.array([
+            [0.17678, 0.25, 0.17678],
+            [0.25, 0.35355, 0.25],
+            [0.17678, 0.25, 0.17678],
+        ])
+
+        b = cpd.near_pd.higham(a, eig_tol=1e-10)
+        assert np.linalg.norm(b - b_expected) < 1e-4 * np.linalg.norm(b)
+
+
+def near_pd_using_r(a, eig_tol: float = 1e-6):
+    """
+
+    Runs the R implementation.
+    Find the nearest symmetric positive-definite matrix to input.
+    A Python/Numpy port of John D'Errico's `nearestSPD` MATLAB code [1], which
+    credits [2].
+
+    [1] https://www.mathworks.com/matlabcentral/fileexchange/42885-nearestspd
+
+    [2] N.J. Higham, "Computing a nearest symmetric positive semidefinite
+    matrix" (1988): https://doi.org/10.1016/0024-3795(88)90223-6
+
+    Code written by Ahmed Fasih and modified by Oren Livne to support 'eig_tol'. See
+    https://stackoverflow.com/questions/43238173/python-convert-matrix-to-positive-semi-definite/43244194#43244194
+
+    Args:
+        a: input square matrix.
+        eig_tol: defines relative positiveness of eigenvalues compared to largest one, lambda_1. Eigenvalues
+        lambda_k are treated as if zero when lambda_k / lambda_1 le eig.tol).
+
+    Returns:
+        SPD matrix.
+    """
+    robjects.r.assign("a_array", rpyn.py2rpy(a))
+    result = robjects.r("as.array(Matrix::nearPD(a_array, eig.tol={})$mat)".format(eig_tol))
+    return np.array(robjects.conversion.rpy2py(result))

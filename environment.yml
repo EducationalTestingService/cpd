@@ -1,0 +1,12 @@
+# Minimum environment for running the code.
+name: cpd
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - kneed
+  - pandas
+  - python >=3.9
+  - scipy
+  - sortednp
+prefix: /Users/olivne/opt/miniconda3/envs/cpd

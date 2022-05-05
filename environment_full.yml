@@ -1,0 +1,18 @@
+# Full environment for running the code, developing, testing, running the notebooks.
+name: cpd2
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - kneed
+  - pandas
+  - python >=3.9
+  - scipy
+  - ipython
+  - jupyterlab
+  - rpy2
+  - pytest
+  - matplotlib
+  - plotly
+  - sortednp
+prefix: /Users/olivne/opt/miniconda3/envs/cpd2
